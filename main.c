@@ -2,9 +2,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.1.0";
+const char* VERSION = "v0.2.0";
+
+#define MAX_LINE 1024
 
 struct termios orig_termios;
 
@@ -43,15 +46,56 @@ void enableRawMode() {
 int main(void) {
     enableRawMode();
 
-    /* We need to continuously read one character at a time from standard input and
-       stop when the user types q.
-     * We can use a while loop to loop continuously and break to stop.
-     */
+    char line[MAX_LINE];
+    int len = 0;
     char c;
     while (1) {
-        read(STDIN_FILENO, &c, 1);
-        if (c == 'q')
-            break;
+        /* Reads the char the user types.
+         * Stores the char to c.
+         */
+        ssize_t nread = read(STDIN_FILENO, &c, 1);
+        /* If input stream has ended */
+        if (nread == 0) {
+            return 0;
+        }
+        /* If theres an error in reading */
+        else if (nread == -1) {
+            perror("Failed to read");
+            return 1;
+        }
+        
+        /* If user presses enter. */
+        if (c == '\r' || c == '\n') {
+            line[len] = '\0';
+            len = 0;
+            /* If user types exit */
+            if (strcmp(line, "exit") == 0) {
+                return 0;
+            }
+            /* Return to column 0 and leave new line. */
+            write(STDOUT_FILENO, "\r\n", 2);
+        }
+        /* If user presses backspace */
+        else if (c == 127 && len > 0) {
+            len--;
+            /* \b is to go backwards.
+             * We go back one char and write a space to overwrite the last char.
+             * Then we go back one char again so the next character will overwrite
+               the space.
+             */
+            write(STDOUT_FILENO, "\b \b", 3);
+        }
+        /* If user presses ctrl + d */
+        else if (c == 4) {
+            return 0;
+        }
+        /* If the user does not press enter, backspace, or ctrl + d. */
+        else {
+            line[len] = c;
+            len++;
+            /* Print the char the user types onto screen. */
+            write(STDOUT_FILENO, &c, 1);
+        }
     }
 
     return 0;
