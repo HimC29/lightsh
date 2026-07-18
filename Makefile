@@ -1,3 +1,3 @@
 lightsh: main.c
 	mkdir -p build
-	gcc -Wall main.c -o build/lightsh
+	gcc -Wall src/main.c -o build/lightsh
