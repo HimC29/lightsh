@@ -7,7 +7,7 @@
 #include <limits.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.5.0";
+const char* VERSION = "v0.6.0";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -92,6 +92,21 @@ int runBuiltin(char **args) {
         if (chdir(target) != 0) { /* If cd failed */
             perror("cd");
         }
+    }
+    else if (strcmp(args[0], "pwd") == 0) {
+        char cwd[PATH_MAX];
+        if (getcwd(cwd, sizeof(cwd)) == NULL) {
+            perror("pwd");
+        } else {
+            write(STDOUT_FILENO, cwd, strlen(cwd));
+        }
+        write(STDOUT_FILENO, "\r\n", 2);
+    }
+    else if (strcmp(args[0], "version") == 0) {
+        write(STDOUT_FILENO, NAME, strlen(NAME));
+        write(STDOUT_FILENO, " ", 1);
+        write(STDOUT_FILENO, VERSION, strlen(VERSION));
+        write(STDOUT_FILENO, "\r\n", 2);
     }
     /* If none matching */
     else {
