@@ -4,9 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <limits.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.4.0";
+const char* VERSION = "v0.5.0";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -41,6 +42,23 @@ void enableRawMode() {
      * More info about this function inside function disableRawMode
      */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void printPrompt() {
+    /* Prints prompt in format: '{cwd} >' */
+    char cwd[PATH_MAX];
+    /* If cwd returns NULL
+     * Can occur when:
+        - Buffer too small
+        - Current directory was deleted from under you
+        - Permission issues
+     */
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        write(STDOUT_FILENO, "?", 1);
+    } else { /* If not NULL */
+        write(STDOUT_FILENO, cwd, strlen(cwd));
+    }
+    write(STDOUT_FILENO, " > ", 3);
 }
 
 void tokenize(char line[MAX_LINE], char **args) {
@@ -117,6 +135,9 @@ int main(void) {
     char line[MAX_LINE];
     int len = 0;
     char c;
+
+    printPrompt();
+    
     while (1) {
         /* Reads the char the user types.
          * Stores the char to c.
@@ -152,6 +173,8 @@ int main(void) {
                      runCommand(args);
                 }
             }
+
+            printPrompt();
         }
         /* If user presses backspace */
         else if (c == 127 && len > 0) {
