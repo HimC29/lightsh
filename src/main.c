@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.3.2";
+const char* VERSION = "v0.4.0";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -61,32 +61,50 @@ void tokenize(char line[MAX_LINE], char **args) {
     args[i] = NULL;
 }
 
+int runBuiltin(char **args) {
+    if (strcmp(args[0], "cd") == 0) {
+        char *target = args[1];
+        if (target == NULL) { /* If no directory specified */
+            target = getenv("HOME"); /* Set target to home directory */
+            if (target == NULL) { /* If home not found*/
+                perror("cd");
+                return 1;
+            }
+        }
+        if (chdir(target) != 0) { /* If cd failed */
+            perror("cd");
+        }
+    }
+    /* If none matching */
+    else {
+        return 0;
+    }
+    return 1; /* Return true */
+}
+
 void runCommand(char **args) {
-    /* Only fork/exec if there's a command to run */
-    if (args[0] != NULL) {
-        /* Run the command */
-        pid_t pid = fork(); /* Create a twin process. */
-        /* If failed to create a twin process. */
-        if (pid < 0) {
-           perror("fork");
-        } else if (pid == 0) {
-           /* Everything in here will be run in the child. */
-           disableRawMode();
-           execvp(args[0], args);
-           /* These runs only if execvp failed to run the command. */
-           perror("execvp");
-           exit(1);  
-        } else {
-            /* Everything in here will be run in the parent. */
-            int status;
-            /* Wait until child process finishes. */
-            waitpid(pid, &status, 0);
-            /* Enable raw mode again as earlier we disabled it
-             * Avoids ECHO and write trying to write to the screen at the
-               same time
-             */
-            enableRawMode();
-        }   
+    /* Run the command */
+    pid_t pid = fork(); /* Create a twin process. */
+    /* If failed to create a twin process. */
+    if (pid < 0) {
+       perror("fork");
+    } else if (pid == 0) {
+       /* Everything in here will be run in the child. */
+       disableRawMode();
+       execvp(args[0], args);
+       /* These runs only if execvp failed to run the command. */
+       perror("execvp");
+       exit(1);  
+    } else {
+        /* Everything in here will be run in the parent. */
+        int status;
+        /* Wait until child process finishes. */
+        waitpid(pid, &status, 0);
+        /* Enable raw mode again as earlier we disabled it
+         * Avoids ECHO and write trying to write to the screen at the
+           same time
+         */
+        enableRawMode();
     }
 }
 
@@ -120,15 +138,20 @@ int main(void) {
             len = 0;
             /* Return to column 0 and leave new line. */
             write(STDOUT_FILENO, "\r\n", 2);
-            /* If user types exit. */
+
             if (strcmp(line, "exit") == 0) {
-                return 0;
+                return 0; /* Exit */
             }
 
             char *args[MAX_ARGS]; /* Stores the arguments. */
+            /* Parse what the user types into arguements and store that into args */
             tokenize(line, args);
 
-            runCommand(args);
+            if (args[0] != NULL) {
+                if (runBuiltin(args) == 0) { 
+                     runCommand(args);
+                }
+            }
         }
         /* If user presses backspace */
         else if (c == 127 && len > 0) {
