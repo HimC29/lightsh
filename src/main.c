@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.3.0";
+const char* VERSION = "v0.3.2";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -43,6 +43,53 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+void tokenize(char line[MAX_LINE], char **args) {
+    /* Tokenize the input. */
+    int i = 0; /* This variable is used to count the amount of times looped. */
+    char *token = strtok(line, " "); /* Set token to the first token. */
+
+    /* TODO:
+     * i is not bounds-checked against MAX_ARGS, so a line with more than
+       64 tokens will write past the end of args[]. Fix this issue soon.
+     */
+    while (token != NULL) { /* Loop until token ends. */
+       args[i] = token; /* Store the next tokens in order into args. */
+       token = strtok(NULL, " "); /* Set token to the next token. */
+       i++;
+    }
+    /* End args variable in NULL. (execvp uses it to know when it ends) */
+    args[i] = NULL;
+}
+
+void runCommand(char **args) {
+    /* Only fork/exec if there's a command to run */
+    if (args[0] != NULL) {
+        /* Run the command */
+        pid_t pid = fork(); /* Create a twin process. */
+        /* If failed to create a twin process. */
+        if (pid < 0) {
+           perror("fork");
+        } else if (pid == 0) {
+           /* Everything in here will be run in the child. */
+           disableRawMode();
+           execvp(args[0], args);
+           /* These runs only if execvp failed to run the command. */
+           perror("execvp");
+           exit(1);  
+        } else {
+            /* Everything in here will be run in the parent. */
+            int status;
+            /* Wait until child process finishes. */
+            waitpid(pid, &status, 0);
+            /* Enable raw mode again as earlier we disabled it
+             * Avoids ECHO and write trying to write to the screen at the
+               same time
+             */
+            enableRawMode();
+        }   
+    }
+}
+
 int main(void) {
     /* Automatically disable raw mode when the program exits */
     atexit(disableRawMode);
@@ -77,43 +124,11 @@ int main(void) {
             if (strcmp(line, "exit") == 0) {
                 return 0;
             }
-            /* Tokenize the input. */
+
             char *args[MAX_ARGS]; /* Stores the arguments. */
-            int i = 0; /* This variable is used to count the amount of times looped. */
-            char *token = strtok(line, " "); /* Set token to the first token. */
-            while (token != NULL) { /* Loop until token ends. */
-               args[i] = token; /* Store the next tokens in order into args. */
-               token = strtok(NULL, " "); /* Set token to the next token. */
-               i++;
-            }
-            /* End args variable in NULL. (execvp uses it to know when it ends) */
-            args[i] = NULL;
-            /* Only fork/exec if there's a command to run */
-            if (args[0] != NULL) {
-                /* Run the command */
-                pid_t pid = fork(); /* Create a twin process. */
-                /* If failed to create a twin process. */
-                if (pid < 0) {
-                   perror("fork");
-                } else if (pid == 0) {
-                   /* Everything in here will be run in the child. */
-                   disableRawMode();
-                   execvp(args[0], args);
-                   /* These runs only if execvp failed to run the command. */
-                   perror("execvp");
-                   exit(1);  
-                } else {
-                    /* Everything in here will be run in the parent. */
-                    int status;
-                    /* Wait until child process finishes. */
-                    waitpid(pid, &status, 0);
-                    /* Enable raw mode again as earlier we disabled it
-                     * Avoids ECHO and write trying to write to the screen at the
-                       same time
-                     */
-                    enableRawMode();
-                }   
-            }
+            tokenize(line, args);
+
+            runCommand(args);
         }
         /* If user presses backspace */
         else if (c == 127 && len > 0) {
