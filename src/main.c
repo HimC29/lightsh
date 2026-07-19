@@ -7,7 +7,7 @@
 #include <limits.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.6.0";
+const char* VERSION = "v0.6.1";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -192,14 +192,16 @@ int main(void) {
             printPrompt();
         }
         /* If user presses backspace */
-        else if (c == 127 && len > 0) {
-            len--;
-            /* \b is to go backwards.
-             * We go back one char and write a space to overwrite the last char.
-             * Then we go back one char again so the next character will overwrite
-               the space.
-             */
-            write(STDOUT_FILENO, "\b \b", 3);
+        else if (c == 127) {
+            if (len > 0) {
+                len--;
+                /* \b is to go backwards.
+                 * We go back one char and write a space to overwrite the last char.
+                 * Then we go back one char again so the next character will overwrite
+                   the space.
+                 */
+                write(STDOUT_FILENO, "\b \b", 3);
+            }
         }
         /* If user presses ctrl + d */
         else if (c == 4) {
