@@ -4,10 +4,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 #include <limits.h>
 
 const char* NAME = "lightsh";
-const char* VERSION = "v0.6.1";
+const char* VERSION = "v0.7.0-wip";
 
 #define MAX_LINE 1024
 #define MAX_ARGS 64
@@ -207,6 +208,78 @@ int main(void) {
         else if (c == 4) {
             return 0;
         }
+
+        /* If user pressed arrow keys */
+        /* When user presses an arrow key, it sends bytes 27, 91, and then either A, B,
+           C, or D
+         * We check for byte 27 first, then we use the select() function.
+         * This function checks if this file descriptor has data ready to read within a
+           specific timeout.
+         * We can use that to check for byte 91.
+         */
+        else if (c == 27) {
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(STDIN_FILENO, &readfds);
+
+            struct timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 50000; /* 50ms */
+
+            int result = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &timeout);
+
+            /* If there is a file descriptor in the readfds that has data to read */
+            if (result > 0) {
+                /* Read the byte */
+                read(STDIN_FILENO, &c, 1);
+
+                /* If the byte read is 91/[ */
+                if (c == 91) {
+                    FD_ZERO(&readfds);
+                    FD_SET(STDIN_FILENO, &readfds);
+                    timeout.tv_sec = 0;
+                    timeout.tv_usec = 50000; /* 50ms */
+                    
+                    /* Call select again to see if there is a 3rd byte */
+                    int result = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &timeout);
+                    if (result > 0) {
+                        read(STDIN_FILENO, &c, 1);
+
+                        /* TODO:
+                         * Add functionality to arrow keys
+                         */
+                        switch (c) {
+                            /* If user pressed up arrow */
+                            case 'A':                               
+                                break;
+                            /* If user pressed down arrow */
+                            case 'B':
+                                break;
+                            /* If user pressed right arrow */
+                            case 'C': 
+                                break;
+                            /* If user pressed left arrow */
+                            case 'D':; 
+                                break;
+                        }
+                    }
+                    else if (result < 0) {
+                        perror("select");
+                    }
+                }
+                /* TODO:
+                 * Fix the issue where if the user presses esc and then types a char
+                   in the 50ms window, the char never gets registered.
+                 */
+            }
+            /* If the timeout expires and nothing became ready */
+            else if (result == 0) {}
+            /* If an error occured relating to select() */
+            else if (result < 0) {
+                perror("select");
+            }
+        }
+        
         /* If the user does not press enter, backspace, or ctrl + d. */
         else {
             line[len] = c;
